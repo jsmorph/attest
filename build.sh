@@ -21,3 +21,11 @@ scp "$SCRIPT_DIR/flake.nix" "$SCRIPT_DIR/flake.lock" "$SCRIPT_DIR/$APP" "$HOST":
 
 echo "Building image on $HOST..."
 ssh "$HOST" 'cd ~/attest && . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix build .#raw-image --system x86_64-linux'
+
+echo "Creating AMI..."
+AMI_ID=$(ssh "$HOST" "cd ~/attest && . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-2} nix run .#create-ami -- result/nixos-tee_1.raw 2>&1 | grep 'AMI ID' | awk '{print \$NF}'")
+
+echo "AMI ID: $AMI_ID"
+
+echo "Predicted PCR values:"
+ssh "$HOST" 'cat ~/attest/result/tpm_pcr.json'

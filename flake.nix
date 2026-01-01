@@ -6,42 +6,57 @@
     flake-utils.url = "github:numtide/flake-utils";
     nitro-tee.url = "github:aws/nitrotpm-attestation-samples?dir=nix";
     crane.url = "github:ipetkov/crane";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, nitro-tee, crane, ... }:
+  outputs = { self, nixpkgs, flake-utils, nitro-tee, crane, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages."${system}";
-        craneLib = crane.mkLib pkgs;
-
-        # Fetch NitroTPM-Tools source
-        nitroTpmToolsSrc = builtins.fetchGit {
-          url = "https://github.com/aws/NitroTPM-Tools";
-          rev = "ec21ed738ba628fe460e524b3c485aed9564fe0a";
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
         };
 
-        # Build nitro-tpm-attest binary
-        nitroTpmAttest = let
-          commonArgs = {
-            src = nitroTpmToolsSrc;
-            strictDeps = true;
-            nativeBuildInputs = [ pkgs.pkg-config ];
-            buildInputs = [ pkgs.tpm2-tss pkgs.openssl ];
-          };
-          cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-        in craneLib.buildPackage (commonArgs // {
-          inherit cargoArtifacts;
-          cargoExtraArgs = "-p nitro-tpm-attest";
+        # Set up crane for Rust builds
+        craneLib = (crane.mkLib pkgs).overrideToolchain (p: p.rust-bin.stable.latest.default);
+
+        # Build nitro-tpm-attest from NitroTPM-Tools
+        nitroTpmToolsSrc = builtins.fetchGit {
+          url = "https://github.com/aws/NitroTPM-Tools.git";
+          rev = "a37ff598acf32e3c8c2c85d53bb8f4025b0a12d7";
+        };
+
+        cargoArtifacts = craneLib.buildDepsOnly {
+          src = nitroTpmToolsSrc;
+          pname = "nitro-tpm-tools";
+          version = "1.1.0";
+          strictDeps = true;
           doCheck = false;
-        });
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = [ pkgs.tpm2-tss ];
+        };
+
+        nitroTpmAttest = craneLib.buildPackage {
+          inherit cargoArtifacts;
+          src = nitroTpmToolsSrc;
+          pname = "nitro-tpm-attest";
+          version = "1.1.0";
+          cargoExtraArgs = "-p nitro-tpm-attest";
+          strictDeps = true;
+          doCheck = false;
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = [ pkgs.tpm2-tss pkgs.openssl ];
+        };
 
         # Application script as a package in the nix store
         appScript = pkgs.writeShellScriptBin "app" (builtins.readFile ./app.sh);
 
         # NixOS configuration for our attestable image
         userConfig = { config, pkgs, lib, ... }: {
-          # Include app in system packages
-          environment.systemPackages = [ appScript pkgs.tpm2-tools pkgs.tpm2-tss pkgs.strace nitroTpmAttest ];
+          environment.systemPackages = [ appScript pkgs.tpm2-tools nitroTpmAttest ];
 
           # systemd service to run app on boot
           systemd.services.app = {
@@ -49,7 +64,7 @@
             wantedBy = [ "multi-user.target" ];
             after = [ "network-online.target" ];
             wants = [ "network-online.target" ];
-            path = [ appScript pkgs.coreutils pkgs.tpm2-tools pkgs.strace nitroTpmAttest ];
+            path = [ appScript pkgs.coreutils pkgs.tpm2-tools nitroTpmAttest ];
 
             serviceConfig = {
               Type = "oneshot";
@@ -58,7 +73,6 @@
               StandardError = "journal+console";
             };
             environment = {
-              TPM_DEVICE = "/dev/tpmrm0";
               TPM2TOOLS_TCTI = "device:/dev/tpmrm0";
             };
           };
@@ -87,6 +101,9 @@
             inherit userConfig;
             isDebug = true;
           };
+
+          # Export nitro-tpm-attest as a standalone package
+          inherit nitroTpmAttest;
         };
 
         # Expose utilities from nitro-tee

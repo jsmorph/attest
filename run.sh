@@ -30,15 +30,19 @@ trap cleanup EXIT
 echo "Waiting for instance to run..."
 aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
 
-echo "Polling console output for attestation..."
+echo "Polling console output..."
 for i in {1..60}; do
     OUTPUT=$(aws ec2 get-console-output --instance-id "$INSTANCE_ID" --latest --query Output --output text 2>/dev/null || true)
-    if echo "$OUTPUT" | grep -q "ATTESTATION END"; then
+    if echo "$OUTPUT" | grep -qE "ATTESTATION END|ERROR:|Failed"; then
         echo "$OUTPUT"
-        exit 0
+        if echo "$OUTPUT" | grep -q "ATTESTATION END"; then
+            exit 0
+        else
+            exit 1
+        fi
     fi
     sleep 2
 done
 
-echo "Timeout waiting for attestation. Last output:"
+echo "Timeout waiting for output. Last output:"
 aws ec2 get-console-output --instance-id "$INSTANCE_ID" --latest --query Output --output text
