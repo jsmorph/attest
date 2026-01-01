@@ -64,7 +64,7 @@
             wantedBy = [ "multi-user.target" ];
             after = [ "network-online.target" ];
             wants = [ "network-online.target" ];
-            path = [ appScript pkgs.coreutils pkgs.tpm2-tools nitroTpmAttest ];
+            path = [ appScript pkgs.coreutils pkgs.curl pkgs.gnutar pkgs.gzip pkgs.tpm2-tools nitroTpmAttest ];
 
             serviceConfig = {
               Type = "oneshot";
@@ -86,6 +86,15 @@
 
           # Minimal networking for IMDS access (if needed by app.sh)
           networking.firewall.enable = true;
+
+          # Headless configuration - disable getty services (from nixpkgs/profiles/headless.nix)
+          systemd.services."serial-getty@ttyS0".enable = lib.mkDefault false;
+          systemd.services."serial-getty@hvc0".enable = false;
+          systemd.services."getty@tty1".enable = false;
+          systemd.services."autovt@".enable = false;
+
+          # Since we can't manually respond to a panic, just reboot
+          systemd.enableEmergencyMode = false;
         };
       in
       {
