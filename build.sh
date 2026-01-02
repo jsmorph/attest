@@ -17,7 +17,8 @@ ssh "$HOST" 'command -v nix >/dev/null 2>&1' || {
 }
 
 echo "Copying files to $HOST..."
-scp "$SCRIPT_DIR/flake.nix" "$SCRIPT_DIR/flake.lock" "$SCRIPT_DIR/$APP" "$HOST":~/attest/
+scp "$SCRIPT_DIR/flake.nix" "$SCRIPT_DIR/flake.lock" "$HOST":~/attest/
+scp "$SCRIPT_DIR/$APP" "$HOST":~/attest/app.sh
 
 echo "Building image on $HOST..."
 ssh "$HOST" 'cd ~/attest && . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix build .#raw-image --system x86_64-linux'
