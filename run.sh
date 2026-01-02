@@ -33,7 +33,7 @@ aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
 echo "Polling console output..."
 for i in {1..60}; do
     OUTPUT=$(aws ec2 get-console-output --instance-id "$INSTANCE_ID" --latest --query Output --output text 2>/dev/null || true)
-    if echo "$OUTPUT" | grep -qE "ATTESTATION END|ERROR:|Failed"; then
+    if echo "$OUTPUT" | grep -qE "ATTESTATION END|ERROR"; then
         echo "$OUTPUT"
         if echo "$OUTPUT" | grep -q "ATTESTATION END"; then
             exit 0

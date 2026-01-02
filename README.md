@@ -44,25 +44,36 @@ uv run parse_attestation.py attest.b64
 
 This validates the COSE signature, verifies the certificate chain to the AWS Nitro root CA, and displays PCR values and user data. Compare PCR4 against the build-time prediction to confirm the image is unmodified. The `User Data` field contains the SHA-384 hash of the container output, which can be verified with `echo "Hello from Alpine container" | sha384sum`.
 
-## Passing Data at Runtime
+## Running Custom Scripts
 
-To pass configuration or input data to app.sh at boot time, use EC2 user-data via the Instance Metadata Service (IMDS):
+Build an AMI with `appexec.sh` to run custom scripts at boot:
 
 ```bash
-# In app.sh
-USER_DATA=$(curl -s http://169.254.169.254/latest/user-data)
+./build.sh appexec.sh
 ```
 
-Pass user-data when launching:
+Then use `exec.sh` to run the AMI with a script:
+
 ```bash
-./run.sh <ami-id> --user-data "your-data-here"
+./exec.sh <ami-id> myscript.sh
+```
+
+The script must start with `#!` (e.g., `#!/bin/sh`). It runs before attestation, and clean app output is printed to stdout. Raw console output is saved to `execout.txt`.
+
+Test the capability end-to-end:
+
+```bash
+./testexec.sh
 ```
 
 ## Files
 
 - `flake.nix` - NixOS configuration for the attestable image
-- `app.sh` - Application script baked into the image
+- `app.sh` - Application script that runs Alpine container demo
+- `appexec.sh` - Application script that executes user-data scripts
 - `build.sh` - Builds the image and creates an AMI
 - `run.sh` - Launches an instance and captures console output
+- `exec.sh` - Launches an instance with a custom script via user-data
 - `extract.sh` - Extracts base64 attestation from console output
 - `parse_attestation.py` - Parses and verifies the attestation document
+- `testexec.sh` - End-to-end test for exec.sh
