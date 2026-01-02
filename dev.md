@@ -48,11 +48,16 @@ EC2 Instance Boot
   systemd launches app.service
         │
         ▼
-  app.sh calls nitro-tpm-attest
+  app.sh downloads Alpine minirootfs
+  and runs workload via chroot
+        │
+        ▼
+  Container output hashed (SHA-384)
+  and passed to nitro-tpm-attest
         │
         ▼
   NitroTPM returns signed attestation
-  containing current PCR values
+  containing PCR values and user_data
         │
         ▼
   Attestation output to serial console
@@ -73,10 +78,12 @@ Console output (captured via EC2 API)
   ├── Decode COSE Sign1 structure
   ├── Verify certificate chain to AWS root
   ├── Validate COSE signature
-  └── Extract and display PCR values
+  ├── Extract and display PCR values
+  └── Display user_data (container output hash)
         │
         ▼
   Compare PCR4 against build prediction
+  Compare user_data against sha384sum of expected output
 ```
 
 ## Security Model
@@ -130,8 +137,11 @@ The payload contains:
 - `digest`: Hash algorithm used (SHA384)
 - `timestamp`: Attestation generation time (milliseconds since epoch)
 - `nitrotpm_pcrs`: Map of PCR index to 48-byte SHA-384 values
+- `user_data`: Optional application-provided data bound to the attestation
 - `certificate`: DER-encoded X.509 certificate for signature verification
 - `cabundle`: Array of DER-encoded CA certificates forming chain to AWS root
+
+The `user_data` field allows applications to bind arbitrary data to the attestation. In this system, it contains the SHA-384 hash of the container output, enabling verifiers to confirm both the image integrity (via PCRs) and the specific workload output (via user_data).
 
 ### Certificate Chain
 
@@ -207,14 +217,20 @@ The `create-ami` app uploads the raw image to S3, creates an EBS snapshot, and r
 
 The `app.sh` script:
 
-1. Outputs `=== ATTESTATION START ===` marker
-2. Outputs timestamp in ISO 8601 format
-3. Calls `nitro-tpm-attest` which:
+1. Downloads Alpine Linux minirootfs tarball
+2. Extracts it to a temporary directory
+3. Runs a command inside the container via `chroot`
+4. Captures container output to `/tmp/container.txt` (also displayed via `tee`)
+5. Computes SHA-384 hash of the container output
+6. Outputs `=== ATTESTATION START ===` marker
+7. Outputs timestamp in ISO 8601 format
+8. Calls `nitro-tpm-attest --user-data /tmp/user_data.txt` which:
    - Opens `/dev/tpmrm0` (TPM resource manager)
+   - Includes the hash in the attestation's `user_data` field
    - Requests attestation from NitroTPM
    - Returns CBOR-encoded attestation document
-4. Base64-encodes the attestation
-5. Outputs `=== ATTESTATION END ===` marker
+9. Base64-encodes the attestation
+10. Outputs `=== ATTESTATION END ===` marker
 
 ### Console Output
 
@@ -240,6 +256,7 @@ The `parse_attestation.py` script:
 2. **Verifies certificate chain**: Confirms each certificate is signed by its issuer, terminating at AWS Nitro root
 3. **Validates COSE signature**: Constructs Sig_structure, converts raw R||S signature to DER, verifies with ES384
 4. **Extracts PCR values**: Displays all 24 PCR registers in hexadecimal
+5. **Displays user_data**: Shows the application-provided data (container output hash)
 
 ### PCR Comparison
 
@@ -250,6 +267,16 @@ To verify image integrity:
 3. Parse attestation and compare PCR4
 
 If values match, the instance is running the exact image that was built. Any modification to the kernel, initrd, command line, or root filesystem contents would produce a different PCR4 value.
+
+### User Data Verification
+
+To verify the container output:
+
+1. Observe the container output from console logs (e.g., "Hello from Alpine container")
+2. Compute the expected hash: `echo "Hello from Alpine container" | sha384sum`
+3. Compare against the `user_data` field in the attestation
+
+If values match, the attestation cryptographically binds the specific container output to the signed attestation document. This proves the workload produced the expected output on the attested image.
 
 ## Files Reference
 
@@ -267,7 +294,13 @@ Pinned versions of all flake inputs ensuring reproducible builds.
 
 ### `app.sh`
 
-Application script baked into the image. Runs at boot to generate and output attestation. Modify this to add custom application logic while maintaining attestation output.
+Application script baked into the image. Runs at boot to:
+1. Download and extract Alpine Linux minirootfs
+2. Execute a workload inside the container via chroot
+3. Hash the container output with SHA-384
+4. Generate attestation with the hash bound as user_data
+
+Modify this script to run different container workloads. The hash binding ensures attestation covers both the image (via PCR4) and the specific workload output (via user_data).
 
 ### `build.sh`
 
@@ -291,7 +324,7 @@ Console output parser. Reads from stdin, extracts base64 attestation, writes to 
 
 ### `parse_attestation.py`
 
-Attestation verification tool. Uses `uv` for dependency management (`cbor2`, `cryptography`). Verifies signature and certificate chain, displays PCR values, exits with status 0 on valid signature.
+Attestation verification tool. Uses `uv` for dependency management (`cbor2`, `cryptography`). Verifies signature and certificate chain, displays PCR values and user_data, exits with status 0 on valid signature.
 
 ### `clean.sh`
 

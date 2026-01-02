@@ -117,6 +117,13 @@ def main():
     print(f"Module ID: {doc.get('module_id', 'N/A')}")
     print(f"Digest: {doc.get('digest', 'N/A')}")
     print(f"Timestamp: {doc.get('timestamp', 'N/A')}")
+
+    user_data = doc.get('user_data')
+    if user_data:
+        if isinstance(user_data, bytes):
+            print(f"User Data: {user_data.decode('utf-8', errors='replace')}")
+        else:
+            print(f"User Data: {user_data}")
     print()
     print("PCR Values (SHA384):")
     print("-" * 100)

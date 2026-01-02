@@ -24,7 +24,7 @@ Launch an instance and capture the attestation:
 ./run.sh <ami-id> | tee attestation_output.txt
 ```
 
-The instance runs app.sh on boot, which outputs a base64-encoded NitroTPM attestation document between `ATTESTATION START` and `ATTESTATION END` markers. The instance terminates automatically after output is captured.
+The instance runs app.sh on boot, which downloads an Alpine Linux minirootfs, runs a command via chroot, hashes the output with SHA-384, and includes this hash in the attestation's `user_data` field. The base64-encoded attestation appears between `ATTESTATION START` and `ATTESTATION END` markers. The instance terminates automatically after output is captured.
 
 ## Extract
 
@@ -42,7 +42,7 @@ Parse and verify the attestation signature and certificate chain:
 uv run parse_attestation.py attest.b64
 ```
 
-This validates the COSE signature, verifies the certificate chain to the AWS Nitro root CA, and displays PCR values. Compare PCR4 against the build-time prediction to confirm the image is unmodified.
+This validates the COSE signature, verifies the certificate chain to the AWS Nitro root CA, and displays PCR values and user data. Compare PCR4 against the build-time prediction to confirm the image is unmodified. The `User Data` field contains the SHA-384 hash of the container output, which can be verified with `echo "Hello from Alpine container" | sha384sum`.
 
 ## Files
 
