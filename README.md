@@ -44,6 +44,20 @@ uv run parse_attestation.py attest.b64
 
 This validates the COSE signature, verifies the certificate chain to the AWS Nitro root CA, and displays PCR values and user data. Compare PCR4 against the build-time prediction to confirm the image is unmodified. The `User Data` field contains the SHA-384 hash of the container output, which can be verified with `echo "Hello from Alpine container" | sha384sum`.
 
+## Passing Data at Runtime
+
+To pass configuration or input data to app.sh at boot time, use EC2 user-data via the Instance Metadata Service (IMDS):
+
+```bash
+# In app.sh
+USER_DATA=$(curl -s http://169.254.169.254/latest/user-data)
+```
+
+Pass user-data when launching:
+```bash
+./run.sh <ami-id> --user-data "your-data-here"
+```
+
 ## Files
 
 - `flake.nix` - NixOS configuration for the attestable image
