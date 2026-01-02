@@ -92,9 +92,16 @@
           systemd.services."serial-getty@hvc0".enable = false;
           systemd.services."getty@tty1".enable = false;
           systemd.services."autovt@".enable = false;
+          systemd.services."autovt@tty1".enable = false;
 
           # Since we can't manually respond to a panic, just reboot
           systemd.enableEmergencyMode = false;
+
+          # Prevent logind from spawning VTs
+          services.logind.settings.Login = {
+            NAutoVTs = 0;
+            ReserveVT = 0;
+          };
         };
       in
       {

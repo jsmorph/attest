@@ -8,4 +8,4 @@ Keep all interesting development notes, including links to
 authoritative documentation, in a file called `devnotes.md`, which you
 update as you go.  Use complete sentences.  You are writing for an
 expert with no tolerance for bullshit, guessing, or any other that the
-highest quality technical work.
+highest quality technical work.  Include clear links to authoritative docs
