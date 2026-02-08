@@ -2,6 +2,8 @@
 
 Build and verify attestable AMIs using NixOS and AWS NitroTPM.
 
+This system builds a "builder" image reproducibly, so that its measurements are predictable.  The builder image then builds an application image, which need not be reproducible.  To verify an application image, a verifier checks the attestation from the builder and confirms that the builder's own measurements match the known-good values derived from the reproducible build.  The application image is trustworthy because the builder that produced it is trustworthy.
+
 ## Prerequisites
 
 An SSH host named `dev` running Amazon Linux 2023 with Nix installed and appropriate AWS permissions to create AMIs and launch EC2 instances.
