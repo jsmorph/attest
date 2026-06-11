@@ -6,6 +6,7 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-2}"
 AMI_ID="${1:-}"
 SCRIPT_FILE="${2:-}"
 INSTANCE_TYPE="${INSTANCE_TYPE:-c5.xlarge}"
+IAM_INSTANCE_PROFILE="${IAM_INSTANCE_PROFILE:-}"
 
 if [[ -z "$AMI_ID" || -z "$SCRIPT_FILE" ]]; then
     echo "Usage: $0 <ami-id> <script-file>" >&2
@@ -18,10 +19,20 @@ if [[ ! -f "$SCRIPT_FILE" ]]; then
 fi
 
 echo "Launching instance with AMI $AMI_ID and user-data from $SCRIPT_FILE..."
+INSTANCE_PROFILE_ARGS=()
+if [[ -n "$IAM_INSTANCE_PROFILE" ]]; then
+    if [[ "$IAM_INSTANCE_PROFILE" == arn:* ]]; then
+        INSTANCE_PROFILE_ARGS=(--iam-instance-profile "Arn=$IAM_INSTANCE_PROFILE")
+    else
+        INSTANCE_PROFILE_ARGS=(--iam-instance-profile "Name=$IAM_INSTANCE_PROFILE")
+    fi
+fi
+
 INSTANCE_ID=$(aws ec2 run-instances \
     --image-id "$AMI_ID" \
     --instance-type "$INSTANCE_TYPE" \
     --user-data "file://$SCRIPT_FILE" \
+    "${INSTANCE_PROFILE_ARGS[@]}" \
     --count 1 \
     --query 'Instances[0].InstanceId' \
     --output text)

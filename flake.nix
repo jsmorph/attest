@@ -56,7 +56,9 @@
 
         # NixOS configuration for our attestable image
         userConfig = { config, pkgs, lib, ... }: {
-          environment.systemPackages = [ appScript pkgs.tpm2-tools nitroTpmAttest ];
+          environment.systemPackages = [ appScript pkgs.awscli2 pkgs.docker pkgs.tpm2-tools nitroTpmAttest ];
+
+          virtualisation.docker.enable = true;
 
           # systemd service to run app on boot
           systemd.services.app = {
@@ -64,7 +66,7 @@
             wantedBy = [ "multi-user.target" ];
             after = [ "network-online.target" ];
             wants = [ "network-online.target" ];
-            path = [ appScript pkgs.coreutils pkgs.curl pkgs.gnutar pkgs.gzip pkgs.tpm2-tools nitroTpmAttest ];
+            path = [ appScript pkgs.awscli2 pkgs.coreutils pkgs.curl pkgs.docker pkgs.gnutar pkgs.gzip pkgs.tpm2-tools nitroTpmAttest ];
 
             serviceConfig = {
               Type = "oneshot";
