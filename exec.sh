@@ -9,6 +9,7 @@ INSTANCE_TYPE="${INSTANCE_TYPE:-c5.xlarge}"
 IAM_INSTANCE_PROFILE="${IAM_INSTANCE_PROFILE:-}"
 ROOT_VOLUME_SIZE_GB="${ROOT_VOLUME_SIZE_GB:-}"
 POLL_ATTEMPTS="${POLL_ATTEMPTS:-240}"
+EXEC_ENV_VARS="${EXEC_ENV_VARS:-}"
 
 if [[ -z "$AMI_ID" || -z "$SCRIPT_FILE" ]]; then
     echo "Usage: $0 <ami-id> <script-file>" >&2
@@ -18,6 +19,56 @@ fi
 if [[ ! -f "$SCRIPT_FILE" ]]; then
     echo "Error: $SCRIPT_FILE not found" >&2
     exit 1
+fi
+
+TMP_USER_DATA=""
+USER_DATA_FILE="$SCRIPT_FILE"
+INSTANCE_ID=""
+
+cleanup() {
+    if [[ -n "$INSTANCE_ID" ]]; then
+        echo "Terminating instance $INSTANCE_ID"
+        aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" >/dev/null
+    fi
+    if [[ -n "$TMP_USER_DATA" ]]; then
+        rm -f "$TMP_USER_DATA"
+    fi
+}
+trap cleanup EXIT
+
+shell_quote() {
+    local value="$1"
+    printf "'"
+    printf '%s' "$value" | sed "s/'/'\\\\''/g"
+    printf "'"
+}
+
+if [[ -n "$EXEC_ENV_VARS" ]]; then
+    TMP_USER_DATA="$(mktemp)"
+    {
+        printf '%s\n' '#!/bin/sh'
+        for name in ${EXEC_ENV_VARS//,/ }; do
+            if [[ ! "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+                echo "Error: invalid EXEC_ENV_VARS name: $name" >&2
+                exit 1
+            fi
+            if [[ -z "${!name+x}" ]]; then
+                echo "Error: EXEC_ENV_VARS includes unset variable: $name" >&2
+                exit 1
+            fi
+            value="${!name}"
+            if [[ "$value" == *$'\n'* ]]; then
+                echo "Error: EXEC_ENV_VARS value contains a newline: $name" >&2
+                exit 1
+            fi
+            printf 'export %s=' "$name"
+            shell_quote "$value"
+            printf '\n'
+        done
+        tail -n +2 "$SCRIPT_FILE"
+    } > "$TMP_USER_DATA"
+    chmod 600 "$TMP_USER_DATA"
+    USER_DATA_FILE="$TMP_USER_DATA"
 fi
 
 echo "Launching instance with AMI $AMI_ID and user-data from $SCRIPT_FILE"
@@ -38,7 +89,7 @@ fi
 INSTANCE_ID=$(aws ec2 run-instances \
     --image-id "$AMI_ID" \
     --instance-type "$INSTANCE_TYPE" \
-    --user-data "file://$SCRIPT_FILE" \
+    --user-data "file://$USER_DATA_FILE" \
     "${INSTANCE_PROFILE_ARGS[@]}" \
     "${ROOT_VOLUME_ARGS[@]}" \
     --count 1 \
@@ -46,12 +97,6 @@ INSTANCE_ID=$(aws ec2 run-instances \
     --output text)
 
 echo "Instance: $INSTANCE_ID"
-
-cleanup() {
-    echo "Terminating instance $INSTANCE_ID"
-    aws ec2 terminate-instances --instance-ids "$INSTANCE_ID" >/dev/null
-}
-trap cleanup EXIT
 
 echo "Waiting for instance to run"
 aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
