@@ -1,5 +1,5 @@
-#!/bin/bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 # Example: Run a container image without Docker
 # This demonstrates that app.sh can execute arbitrary workloads.
@@ -10,12 +10,13 @@ set -euo pipefail
 WORKDIR=$(mktemp -d)
 cd "$WORKDIR"
 
-# Fetch Alpine Linux minirootfs
-curl -sL https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz | tar -xzf -
+curl -fsSL \
+    https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz \
+    -o alpine-minirootfs.tar.gz
+tar -xzf alpine-minirootfs.tar.gz
 
-# Run a command inside the container filesystem using chroot
-# Tee output to file for hashing while displaying to console
-chroot . /bin/sh -c 'echo "Hello from Alpine container"' 2>&1 | tee /tmp/container.txt
+chroot . /bin/sh -c 'echo "Hello from Alpine container"' > /tmp/container.txt 2>&1
+cat /tmp/container.txt
 
 cd /
 rm -rf "$WORKDIR"
