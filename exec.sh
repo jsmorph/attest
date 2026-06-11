@@ -7,6 +7,7 @@ AMI_ID="${1:-}"
 SCRIPT_FILE="${2:-}"
 INSTANCE_TYPE="${INSTANCE_TYPE:-c5.xlarge}"
 IAM_INSTANCE_PROFILE="${IAM_INSTANCE_PROFILE:-}"
+ROOT_VOLUME_SIZE_GB="${ROOT_VOLUME_SIZE_GB:-}"
 
 if [[ -z "$AMI_ID" || -z "$SCRIPT_FILE" ]]; then
     echo "Usage: $0 <ami-id> <script-file>" >&2
@@ -28,11 +29,17 @@ if [[ -n "$IAM_INSTANCE_PROFILE" ]]; then
     fi
 fi
 
+ROOT_VOLUME_ARGS=()
+if [[ -n "$ROOT_VOLUME_SIZE_GB" ]]; then
+    ROOT_VOLUME_ARGS=(--block-device-mappings "DeviceName=/dev/xvda,Ebs={VolumeSize=$ROOT_VOLUME_SIZE_GB,DeleteOnTermination=true}")
+fi
+
 INSTANCE_ID=$(aws ec2 run-instances \
     --image-id "$AMI_ID" \
     --instance-type "$INSTANCE_TYPE" \
     --user-data "file://$SCRIPT_FILE" \
     "${INSTANCE_PROFILE_ARGS[@]}" \
+    "${ROOT_VOLUME_ARGS[@]}" \
     --count 1 \
     --query 'Instances[0].InstanceId' \
     --output text)
