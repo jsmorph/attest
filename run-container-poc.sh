@@ -23,14 +23,25 @@ while ! docker info >/dev/null 2>&1; do
 done
 
 image_tar="$work_root/image.tar"
-aws s3 cp "$image_tar_s3" "$image_tar"
-image_tar_sha384="$(sha384sum "$image_tar" | awk '{print $1}')"
+aws s3 cp "$image_tar_s3" "$image_tar" --no-progress
+set -- $(sha384sum "$image_tar")
+image_tar_sha384="$1"
 docker load -i "$image_tar"
 image_id="$(docker image inspect "$image_ref" --format '{{.Id}}')"
 
+if [ ! -e /dev/tpm0 ]; then
+    echo "error: /dev/tpm0 is required for nitro-tpm-attest" >&2
+    exit 1
+fi
+
+device_args="--device /dev/tpm0"
+if [ -e /dev/tpmrm0 ]; then
+    device_args="$device_args --device /dev/tpmrm0"
+fi
+
 docker run --rm \
     --network host \
-    --device /dev/tpmrm0 \
+    $device_args \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$work_root:$work_root" \
     -e AWS_DEFAULT_REGION \
