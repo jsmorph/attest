@@ -1,3 +1,4 @@
 *~
 attest.b64
 tpm_pcr.json
+__pycache__/
