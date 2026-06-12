@@ -6,9 +6,16 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-us-east-2}"
 image_tar_s3="${IMAGE_TAR_S3:-s3://agentcourt-data/arbattest/images/arb-glue-poc.tar}"
 : "${INPUT_PREFIX:?INPUT_PREFIX is required}"
 input_prefix="${INPUT_PREFIX%/}"
+aar_example="${AAR_EXAMPLE:-ex01}"
+case "$aar_example" in
+    ""|.*|*/*|*..*)
+        echo "error: invalid AAR_EXAMPLE: $aar_example" >&2
+        exit 1
+        ;;
+esac
 output_root="${OUTPUT_ROOT:-s3://agentcourt-data/arbattest/aar-runs}"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-run_id="${RUN_ID:-aar-ex01-$stamp}"
+run_id="${RUN_ID:-aar-$aar_example-$stamp}"
 output_prefix="${OUTPUT_PREFIX:-$output_root/$run_id}"
 work_root="${WORK_ROOT:-/var/lib/arbattest-aar}"
 image_ref="${IMAGE_REF:-arb-glue:poc}"
@@ -51,6 +58,7 @@ docker run --rm \
     -e INPUT_PREFIX="$input_prefix" \
     -e OUTPUT_PREFIX="$output_prefix" \
     -e RUN_ID="$run_id" \
+    -e AAR_EXAMPLE="$aar_example" \
     -e ARB_GLUE_MODE=aar \
     -e ARB_GLUE_WORK_ROOT="$work_root" \
     -e ARB_GLUE_IMAGE_ID="$image_id" \
@@ -58,4 +66,5 @@ docker run --rm \
     "$image_ref"
 
 printf 'INPUT_PREFIX=%s\n' "$input_prefix"
+printf 'AAR_EXAMPLE=%s\n' "$aar_example"
 printf 'OUTPUT_PREFIX=%s\n' "$output_prefix"
