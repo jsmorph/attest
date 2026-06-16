@@ -6,7 +6,7 @@ This system builds a "builder" image reproducibly, so that its measurements are 
 
 ## Prerequisites
 
-An SSH host named `dev` running Amazon Linux 2023 with Nix installed and appropriate AWS permissions to create AMIs and launch EC2 instances.
+An SSH host named `dev` must satisfy the build-host and runner-host requirements in [Dev Host Requirements](dev-host.md).  The short version is an x86_64 Amazon Linux 2023 host with `~/attest`, Nix daemon support, AWS CLI, outbound network access, and AWS permissions for EBS direct snapshot upload, AMI registration, EC2 launch, console output, termination, and optional role passing.  The detailed document also covers default region behavior, EC2 default VPC assumptions, disk requirements, cleanup permissions, and verification commands.
 
 ## Build
 

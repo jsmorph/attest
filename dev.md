@@ -159,9 +159,7 @@ The verifier must confirm the chain terminates at the known AWS Nitro root CA an
 
 ### Prerequisites
 
-- SSH access to a build host (`dev`) running Amazon Linux 2023
-- Nix installed on the build host
-- AWS credentials with permissions to create AMIs
+The build host must satisfy [Dev Host Requirements](dev-host.md).  In the verified setup, `dev` is an x86_64 Amazon Linux 2023 host with `~/attest`, Nix daemon support, AWS CLI, outbound network access, and AWS permissions for EBS direct snapshot upload and AMI registration.  When the same host runs `run.sh`, `exec.sh`, or `clean.sh`, it also needs the EC2 launch, console, termination, cleanup, and optional role-passing permissions listed there.
 
 ### Nix Flake Structure
 
